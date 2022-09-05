@@ -1,0 +1,125 @@
+Authentication | Part 2 | Cheat Sheet
+
+    - Authentication Mechanisms
+    - Token Authentication mechanism
+        - Access Token
+        - How Token Authentication works?
+    - JWT
+        - How JWT works?
+        - JWT Package
+    - Login User API by generating the JWT Token
+    - How to pass JWT Token?
+    - Get Books API with Token Authentication
+
+
+1. Authentication Mechanisms
+    To check whether the user is logged in or not we use different Authentication mechanisms
+
+    Commonly used Authentication mechanisms:
+
+        - Token Authentication
+        - Session Authentication
+
+
+2. Token Authentication mechanism
+    We use the Access Token to verify whether the user is logged in or not
+
+    2.1 Access Token
+        Access Token is a set of characters which are used to identify a user
+
+        Example:
+
+        It is used to verify whether a user is Valid/Invalid
+
+    2.2 How Token Authentication works?
+        Server generates token and certifies the client
+        Client uses this token on every subsequent request
+        Client don’t need to provide entire details every time
+
+
+3. JWT
+    JSON Web Token is a standard used to create access tokens for an application
+    This access token can also be called as JWT Token
+
+    3.1 How JWT works?
+        Client: Login with username and password
+        Server: Returns a JWT Token
+        Client: Sends JWT Token while requesting
+        Server: Sends Response to the client
+
+    3.2 JWT Package
+        jsonwebtoken package provides jwt.sign and jwt.verify functions
+
+            - jwt.sign() function takes payload, secret key, options as arguments and generates JWTToken out of it
+            - jwt.verify() verifies jwtToken and if it’s valid, returns payload. Else, it throws an error
+
+        Code: root@123root@123:.../myapp# npm install jsonwebtoken
+
+
+4. Login User API by generating the JWT Token
+    When the user tries to log in, verify the Password.
+    Returns JWT Token if the password matches else return Invalid Password with status code 400.
+
+    API:
+        app.post("/login", async (request, response) => {
+        const { username, password } = request.body;
+        const selectUserQuery = `SELECT * FROM user WHERE username = '${username}'`;
+        const dbUser = await db.get(selectUserQuery);
+        if (dbUser === undefined) {
+            response.status(400);
+            response.send("Invalid User");
+        } else {
+            const isPasswordMatched = await bcrypt.compare(password, dbUser.password);
+            if (isPasswordMatched === true) {
+            const payload = {
+                username: username,
+            };
+            const jwtToken = jwt.sign(payload, "MY_SECRET_TOKEN");
+            response.send({ jwtToken });
+            } else {
+            response.status(400);
+            response.send("Invalid Password");
+            }
+        }
+        });
+
+5. How to pass JWT Token?
+    We have to add an authorization header to our request and the JWT Token is passed as a Bearer token
+
+    Code:
+
+        GET http://localhost:3000/books?offset=2&limit=3&search_q=the&order_by=price&order=DESC
+        Authorization: bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoicmFodWwiLCJnZW5kZXIiOiJNYWxlIiwibG9jYXRpb24iOiJoeWRlcmFiYWQiLCJpYXQiOjE2MTc0MzI0MDd9.Eqevw5QE70ZAVrmOZUc6pflUbeI0ffZUmQLDHYplU8g
+
+6. Get Books API with Token Authentication
+    Here we check for JWT Token from Headers.
+    If JWT Token is not present it returns an Invalid Access Token with status code 401 else verify the JWT Token.
+
+    API:
+        app.get("/books/", (request, response) => {
+        let jwtToken;
+        const authHeader = request.headers["authorization"];
+        if (authHeader !== undefined) {
+            jwtToken = authHeader.split(" ")[1];
+        }
+        if (jwtToken === undefined) {
+            response.status(401);
+            response.send("Invalid Access Token");
+        } else {
+            jwt.verify(jwtToken, "MY_SECRET_TOKEN", async (error, payload) => {
+            if (error) {
+                response.send("Invalid Access Token");
+            } else {
+                const getBooksQuery = `
+                    SELECT
+                    *
+                    FROM
+                    book
+                    ORDER BY
+                    book_id;`;
+                const booksArray = await db.all(getBooksQuery);
+                response.send(booksArray);
+            }
+            });
+        }
+        });
